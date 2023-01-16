@@ -1,0 +1,17 @@
+RewriteEngine On
+
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME} !-f
+
+RewriteRule ^tasks/([0-9]+)$    controller/task.php?taskid=$1   [L]
+RewriteRule ^tasks controller/task.php [L]
+
+#http://localhost/task-api/controller/task.php
+#http://localhost/task-api/tasks
+
+
+#http://localhost/task-api/controller/task.php?taskid=1
+#http://localhost/task-api/tasks/1
+
+# RewriteRule ^tasks/students/([0-9]+)/ocena/([1-5])$    controller/task.php?studentid=$1&ocena=$2   [L]
+#http://localhost/task-api/tasks/students/15/naziv/2

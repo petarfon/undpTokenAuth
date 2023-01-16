@@ -40,7 +40,7 @@ if (isset($_GET['taskid'])) {
 
         // while ($row = $result->fetch_assoc()) {
         $row = $result->fetch_assoc();
-        $task = new Task($row['id'], $row['title'], $row['description'], $row['deadline'], $row['complited']);
+        $task = new Task($row['id'], $row['title'], $row['description'], $row['deadline'], $row['completed']);
         $taskArray[] = $task->returnTaskArray();
         // }
 
@@ -53,11 +53,72 @@ if (isset($_GET['taskid'])) {
         $response->setData($returnData);
         $response->send();
         exit;
+    } elseif ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
+        $query = "DELETE FROM tasks WHERE id=$taskid";
+        $result = $conn->query($query);
+
+        $num_rows = $conn->affected_rows;
+        if ($num_rows === 0) {
+            $response = new Response();
+            $response->setHttpStatusCode(404);
+            $response->setSuccess(false);
+            $response->addMessage("Task not found.");
+            $response->send();
+            exit;
+        }
+
+        $response = new Response();
+        $response->setHttpStatusCode(200);
+        $response->setSuccess(true);
+        $response->addMessage("Task deleted.");
+        $response->send();
+        exit;
     } else {
         $response = new Response();
         $response->setHttpStatusCode(405);
         $response->setSuccess(false);
         $response->addMessage('Request method not allowed');
+        $response->send();
+        exit;
+    }
+} elseif (empty($_GET)) {
+    //radi se get all
+    //vracamo sve -> vracali 1
+    //petlju -> nema petlje
+    //200 ok
+    //404 
+    if ($_SERVER['REQUEST_METHOD'] === "GET") {
+        $query = "SELECT * FROM tasks";
+        $result = $conn->query($query);
+
+        $rowCount = $result->num_rows;
+        if ($rowCount === 0) {
+            $response = new Response();
+            $response->setHttpStatusCode(404);
+            $response->setSuccess(false);
+            $response->addMessage("Tasks not found!");
+            $response->send();
+            exit;
+        }
+
+        while ($row = $result->fetch_assoc()) {
+            $task = new Task($row['id'], $row['title'], $row['description'], $row['deadline'], $row['completed']);
+            $taskArray[] = $task->returnTaskArray();
+        }
+
+        $returnData = array();
+        $returnData['row_returned'] = $rowCount;
+        $returnData['tasks'] = $taskArray;
+        $response = new Response();
+        $response->setHttpStatusCode(200);
+        $response->setSuccess(true);
+        $response->setData($returnData);
+        $response->send();
+    } else {
+        $response = new Response();
+        $response->setHttpStatusCode(405);
+        $response->setSuccess(false);
+        $response->addMessage("Request method not allowed");
         $response->send();
         exit;
     }
