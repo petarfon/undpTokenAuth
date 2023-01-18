@@ -273,6 +273,73 @@ if (isset($_GET['taskid'])) {
 } elseif (isset($_GET['page'])) {
     //kod
     if ($_SERVER['REQUEST_METHOD'] === "GET") {
+        $page = $_GET['page'];
+
+        if ($page == '' || !is_numeric($page)) {
+            $response = new Response();
+            $response->setHttpStatusCode(400);
+            $response->setSuccess(false);
+            $response->addMessage("Page number connot be blank and must be numeric!");
+            $response->send();
+            exit;
+        }
+
+        $limitPerPage = 10;
+        $query = "SELECT count(id) as totalNoOfTasks FROM tasks";
+        $result = $conn->query($query);
+
+        $row = mysqli_fetch_assoc($result);
+        $tasksCount = intval($row['totalNoOfTasks']); //ukupan broj taskova u tabeli
+        // $tasksCount = intval($row['count(id)']);
+        $numOfPages = ceil($tasksCount / $limitPerPage);
+        //ako imamo 21 task u tabeli
+        // 1  2  2,1 - NE
+        // 1  2  3 - DA
+        // 10 10 1 - da bi bilo ovako
+
+        if ($numOfPages == 0) {
+            $numOfPages = 1;
+        }
+        // tasks/page/100
+        if ($page > $numOfPages) {
+            $response = new Response();
+            $response->setHttpStatusCode(404);
+            $response->setSuccess(false);
+            $response->addMessage('Page not found');
+            $response->send();
+            exit;
+        }
+        //primer da imamo samo 21 task
+        //1 - 1-10
+        //2 - 11-20
+        //3 - 21
+
+        //10*(2-1) = 10
+        //10*(3-1) = 20
+        $offset = ($page == 1 ? 0 : $limitPerPage * ($page - 1));
+        $query = "SELECT * FROM tasks limit $limitPerPage offset $offset";
+        $result2 = $conn->query($query);
+
+        $rowCount = $result2->num_rows;
+        while ($row = $result2->fetch_assoc()) {
+            $task = new Task($row['id'], $row['title'], $row['description'], $row['deadline'], $row['completed']);
+            $taskArray[] = $task->returnTaskArray();
+        }
+
+        $returnData = array();
+        $returnData['row_returned'] = $rowCount;
+        $returnData['total_rows'] = $tasksCount;
+        $returnData['total_pages'] = $numOfPages;
+        $returnData['has_next_page'] = ($page < $numOfPages) ? true : false;
+        $returnData['has_previous_page'] = ($page > 1) ? true : false;
+        $returnData['tasks'] = $taskArray;
+
+        $response = new Response();
+        $response->setHttpStatusCode(200);
+        $response->setSuccess(true);
+        $response->setData($returnData);
+        $response->send();
+        exit;
     } else {
         $response = new Response();
         $response->setHttpStatusCode(405);
