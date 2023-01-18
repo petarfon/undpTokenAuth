@@ -12,6 +12,11 @@ $conn = DB::connectDB();
 // tasks/1 GET
 // tasks/1 DELETE
 
+
+//.htaccess
+//regularni izrazi
+
+
 if (isset($_GET['taskid'])) {
     $taskid = $_GET['taskid'];
 
@@ -96,9 +101,9 @@ if (isset($_GET['taskid'])) {
             exit;
         }
 
+        //vraca stari task sa starim vrednostim
         $query = "SELECT * FROM tasks WHERE id=$taskid";
         $result = $conn->query($query);
-
         $rowCount = $result->num_rows;
         if ($rowCount === 0) {
             $response = new Response();
@@ -140,13 +145,49 @@ if (isset($_GET['taskid'])) {
             $response->send();
             exit;
         }
+        // var_dump($queryFields);
         $queryFields = rtrim($queryFields, ",");
-        var_dump($queryFields);
         $queryString = "UPDATE tasks SET $queryFields WHERE id=$taskid";
         $result2 = $conn->query($queryString);
 
         //sta ako nije lepo azuriran red u tabeli
 
+        $row = $result->fetch_assoc();
+
+        $task = new Task($row['id'], $row['title'], $row['description'], $row['deadline'], $row['completed']);
+
+        $queryFieldsCheck = "";
+        if ($title_update) {
+            $task->setTitle($jsonData->title);
+            $queryFieldsCheck .= "title='{$task->getTitle()}' AND ";
+        }
+        if ($description_update) {
+            $task->setDescription($jsonData->description);
+            $queryFieldsCheck .= "description='{$task->getDescription()}' AND ";
+        }
+        if ($deadline_update) {
+            $task->setDeadline($jsonData->deadline);
+            $queryFieldsCheck .= "deadline='{$task->getDeadline()}' AND ";
+        }
+        if ($completed_update) {
+            $task->setCompleted($jsonData->completed);
+            $queryFieldsCheck .= "completed='{$task->getCompleted()}' AND ";
+        }
+        $queryFieldsCheck .= "id='{$task->getID()}'";
+
+        $query3 = "SELECT * FROM tasks WHERE $queryFieldsCheck";
+        $result3 = $conn->query($query3);
+
+        $rowCount = $result3->num_rows;
+        if ($rowCount === 0) {
+            $response = new Response();
+            $response->setHttpStatusCode(404);
+            $response->setSuccess(false);
+            $response->addMessage("Task not updated - given values must be the same as the stored values");
+            $response->send();
+            exit;
+        }
+        //SELECT * FROM tasks WHERE title='...' AND description='...' AND id=...
         //potrebno je napisati upit koji proverava da li postoji element sa: id, deadline, completed, title, description
 
         $result4 = $conn->query("SELECT * FROM tasks WHERE id=$taskid");
