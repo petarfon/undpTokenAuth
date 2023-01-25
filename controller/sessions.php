@@ -70,6 +70,10 @@ if (isset($_GET['sessionid'])) {
 
         if (!password_verify($password, $db_password)) {
             //implmentirati login attempts
+
+            $query = "UPDATE tblusers SET loginattempts = $db_loginattempts + 1 WHERE id = $db_id";
+            $result = $conn->query($query);
+
             $response = new Response();
             $response->setHttpStatusCode(409);
             $response->setSuccess(false);
@@ -80,7 +84,56 @@ if (isset($_GET['sessionid'])) {
         }
         //uspesan login
         //treba da pokrenemo sesiju
+
+        //generisemo access token
+        $accesstoken = base64_encode(bin2hex(openssl_random_pseudo_bytes(24)));
+        $refreshtoken = base64_encode(bin2hex(openssl_random_pseudo_bytes(24)));
+
+        $access_expiry = 1800; // 30 minuta
+        $refresh_expiry = 1800000; //priblizno 3 nedelje
+
     } catch (Exception $ex) {
         //implementirati
+    }
+
+    $conn->begin_transaction();
+    try {
+        //resetujemo loginattempts na vrednost 0
+        $query1 = "UPDATE tblusers SET loginattempts = 0 WHERE id = $db_id";
+        $conn->query($query1);
+
+        //kreiramo sesiju
+        $query2 = "INSERT INTO tblsessions (userid, accesstoken, accessexpiry, refreshtoken, refreshexpiry) 
+                VALUES ($db_id, '$accesstoken', DATE_ADD(now(), INTERVAL $access_expiry SECOND), '$refreshtoken', DATE_ADD(now(), INTERVAL $refresh_expiry SECOND))";
+        $conn->query($query2);
+
+        // brz nacin da pronadjemo id sesije koja je poslednja dodata
+        $last_id = $conn->insert_id;
+
+        $conn->commit();
+
+        $returnData = array();
+        $returnData['session_id'] = intval($last_id);
+        $returnData['accesstoken'] = $accesstoken;
+        $returnData['refreshtoken'] = $refreshtoken;
+
+        $response = new Response();
+        $response->setHttpStatusCode(201);
+        $response->setSuccess(true);
+        $response->addMessage('User logged in, access token created');
+        $response->setData($returnData);
+        $response->send();
+
+        exit;
+    } catch (Exception $ex) {
+        // ponistavamo promene nad bazom
+        $conn->rollback();
+
+        //response
+        $response = new Response();
+        $response->setHttpStatusCode(500);
+        $response->setSuccess(false);
+        $response->addMessage('Error logging user');
+        $response->send();
     }
 }

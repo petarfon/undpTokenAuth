@@ -16,6 +16,70 @@ $conn = DB::connectDB();
 //.htaccess
 //regularni izrazi
 
+//Autorizacija krece
+
+if (!isset($_SERVER['HTTP_AUTHORIZATION']) || strlen($_SERVER['HTTP_AUTHORIZATION']) < 1) {
+    $response = new Response();
+    $response->setHttpStatusCode(401);
+    $response->setSuccess(false);
+    $response->addMessage('Authorization token cannot be blank or must be set');
+    $response->send();
+    exit;
+}
+
+$accesstoken = $_SERVER['HTTP_AUTHORIZATION'];
+
+try {
+    //citamo podatke user-a
+    $query = "SELECT userid, accessexpiry, loginattempts FROM tblusers, tblsessions WHERE tblsessions.userid = tblusers.id AND accesstoken = '$accesstoken'";
+    $result = $conn->query($query);
+
+    $rowCount = mysqli_num_rows($result);
+    if ($rowCount === 0) {
+        $response = new Response();
+        $response->setHttpStatusCode(401);
+        $response->setSuccess(false);
+        $response->addMessage('Access token not valid');
+        $response->send();
+        exit;
+    }
+
+    $row = $result->fetch_assoc();
+
+    $db_userid = $row['userid'];
+    $db_accessexpiry = $row['accessexpiry'];
+    $db_loginattempts = $row['loginattempts'];
+
+    if (strtotime($db_accessexpiry) < time()) {
+        $response = new Response();
+        $response->setHttpStatusCode(401);
+        $response->setSuccess(false);
+        $response->addMessage('Access token expired');
+        $response->send();
+        exit;
+    }
+
+    if ($db_loginattempts >= 3) {
+        $response = new Response();
+        $response->setHttpStatusCode(401);
+        $response->setSuccess(false);
+        $response->addMessage('User account is currently locked out');
+        $response->send();
+        exit;
+    }
+} catch (Exception $ex) {
+    //response
+    $response = new Response();
+    $response->setHttpStatusCode(500);
+    $response->setSuccess(false);
+    $response->addMessage('Issue during authentication');
+    $response->send();
+    exit;
+}
+
+
+// Autorizacije zavrsena
+
 
 if (isset($_GET['taskid'])) {
     $taskid = $_GET['taskid'];
@@ -236,7 +300,7 @@ if (isset($_GET['taskid'])) {
         exit;
     }
     if ($_SERVER['REQUEST_METHOD'] === "GET") {
-        $query = "SELECT * FROM tasks WHERE completed='$completed'";
+        $query = "SELECT * FROM tasks WHERE completed='$completed' AND userid = $db_userid";
         $result = $conn->query($query);
         $rowCount = $result->num_rows;
         if ($rowCount === 0) {
@@ -317,7 +381,7 @@ if (isset($_GET['taskid'])) {
         //10*(2-1) = 10
         //10*(3-1) = 20
         $offset = ($page == 1 ? 0 : $limitPerPage * ($page - 1));
-        $query = "SELECT * FROM tasks limit $limitPerPage offset $offset";
+        $query = "SELECT * FROM tasks WHERE userid = $db_userid limit $limitPerPage offset $offset";
         $result2 = $conn->query($query);
 
         $rowCount = $result2->num_rows;
@@ -355,7 +419,8 @@ if (isset($_GET['taskid'])) {
     //200 ok
     //404 
     if ($_SERVER['REQUEST_METHOD'] === "GET") {
-        $query = "SELECT * FROM tasks";
+        // vraca sve task-ove korisnika koji je ulogovan
+        $query = "SELECT * FROM tasks WHERE userid = $db_userid";
         $result = $conn->query($query);
 
         $rowCount = $result->num_rows;
@@ -434,9 +499,9 @@ if (isset($_GET['taskid'])) {
         $deadline = $newTask->getDeadline();
         $completed = $newTask->getCompleted();
         if ($deadline == null)
-            $query = "INSERT INTO tasks (title, description, deadline, completed) VALUES ('$title', '$description', null,'$completed')";
+            $query = "INSERT INTO tasks (title, description, deadline, completed, userid) VALUES ('$title', '$description', null,'$completed', $db_userid)"; //izmenjeno
         else
-            $query = "INSERT INTO tasks (title, description, deadline, completed) VALUES ('$title', '$description', '$deadline','$completed')";
+            $query = "INSERT INTO tasks (title, description, deadline, completed, userid) VALUES ('$title', '$description', '$deadline','$completed', $db_userid)"; //izmenjeno
         $result = $conn->query($query);
 
         $rowCount = $conn->affected_rows;
